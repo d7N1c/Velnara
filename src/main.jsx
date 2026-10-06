@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import{createClient}from'@supabase/supabase-js';
-import{Car,Sparkles,MapPin,ShieldCheck,ChevronRight,CheckCircle2,LayoutDashboard,X,LogOut,RefreshCw,Phone,MessageCircle,Navigation}from'lucide-react';
+import{Car,Sparkles,MapPin,ShieldCheck,ChevronRight,CheckCircle2,LayoutDashboard,X,LogOut,RefreshCw,Phone,MessageCircle,Navigation,Send,Download}from'lucide-react';
 import'./style.css';
 
 const supabase=createClient(import.meta.env.VITE_SUPABASE_URL,import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -34,13 +34,20 @@ function Logo(){return <div className="brand"><div className="vmark">V</div><div
 
 function App(){
   const[lang,setLang]=useState('de'),[step,setStep]=useState(1),[v,setV]=useState(null),[p,setP]=useState(null),[xs,setXs]=useState([]),[done,setDone]=useState(null),[admin,setAdmin]=useState(false),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
-  const[session,setSession]=useState(null),[orders,setOrders]=useState([]),[adminLoading,setAdminLoading]=useState(false),[adminError,setAdminError]=useState(''),[orderFilter,setOrderFilter]=useState('all');
+  const[session,setSession]=useState(null),[orders,setOrders]=useState([]),[adminLoading,setAdminLoading]=useState(false),[adminError,setAdminError]=useState(''),[orderFilter,setOrderFilter]=useState('all'),[installPrompt,setInstallPrompt]=useState(null);
   const t=copy[lang];
 
   const total=useMemo(()=>p===null?0:packs[p].p+(v===null?0:vehicles[v].add)+xs.reduce((a,i)=>a+extras[i].p,0),[v,p,xs]);
   const filteredOrders=useMemo(()=>orderFilter==='all'?orders:orders.filter(o=>o.status===orderFilter),[orders,orderFilter]);
 
   useEffect(()=>{document.documentElement.lang=lang},[lang]);
+  useEffect(()=>{
+    if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    const handler=e=>{e.preventDefault();setInstallPrompt(e)};
+    window.addEventListener('beforeinstallprompt',handler);
+    return()=>window.removeEventListener('beforeinstallprompt',handler);
+  },[]);
+
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data})=>setSession(data.session||null));
@@ -51,7 +58,7 @@ function App(){
   const loadOrders=useCallback(async()=>{
     setAdminLoading(true);setAdminError('');
     const{data,error}=await supabase.from('bookings')
-      .select('id,booking_code,created_at,customer_name,email,phone,address,booking_date,booking_time,vehicle_class,package_code,extras,quoted_price_eur,status,notes')
+      .select('id,booking_code,created_at,customer_name,email,phone,telegram_username,address,booking_date,booking_time,vehicle_class,package_code,extras,quoted_price_eur,status,notes')
       .order('created_at',{ascending:false});
     setAdminLoading(false);
     if(error){console.error('Admin load failed',error.message);setAdminError('Could not load bookings. Check that this account has the admin role.');return}
@@ -62,6 +69,13 @@ function App(){
     if(admin&&session)loadOrders();
   },[admin,session,loadOrders]);
 
+  const installApp=async()=>{
+    if(!installPrompt)return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
+
   const save=async e=>{
     e.preventDefault();
     if(v===null||p===null||saving)return;
@@ -71,6 +85,7 @@ function App(){
       customer_name:String(f.get('name')||'').trim(),
       phone:String(f.get('phone')||'').trim(),
       email:String(f.get('email')||'').trim()||null,
+      telegram_username:String(f.get('telegram')||'').trim().replace(/^@/,'')||null,
       address:String(f.get('address')||'').trim(),
       booking_date:f.get('date'),
       booking_time:f.get('time'),
@@ -121,17 +136,17 @@ function App(){
 
   <section id="why" className="section why"><span className="kicker">02 · VELNARA</span><h2>{t.why}</h2><div className="whygrid"><div><MapPin/><h3>{t.why1}</h3><p>Mobile service across Berlin.</p></div><div><ShieldCheck/><h3>{t.why2}</h3><p>Package + vehicle class + extras.</p></div><div><Sparkles/><h3>{t.why3}</h3><p>Clear checklist for every service.</p></div></div></section>
 
-  <section id="booking" className="section booking"><div className="bookHead"><span className="kicker">03 · ONLINE BOOKING</span><h2>{t.book}</h2></div>{done?<div className="success"><CheckCircle2 size={52}/><h2>{t.success}</h2><p>{t.success2}</p><b>{done.id}</b><button className="btn gold" onClick={()=>{setDone(null);setStep(1);setV(null);setP(null);setXs([])}}>{t.new}</button></div>:<div className="bookGrid"><div className="wizard"><div className="progress">{[1,2,3,4].map(i=><i key={i} className={step>=i?'on':''}/>)}</div>{step===1&&<><h3>{t.vehicle}</h3><div className="choices">{vehicles.map((x,i)=><button key={x.code} className={v===i?'selected':''} onClick={()=>{setV(i);setStep(2)}}><Car/><span><b>{x.n}</b><small>{x.ex}{x.add?` · +${money(x.add)}`:''}</small></span></button>)}</div></>}{step===2&&<><h3>{t.package}</h3><div className="choices">{packs.map((x,i)=><button key={x.code} className={p===i?'selected':''} onClick={()=>{setP(i);setStep(3)}}><Sparkles/><span><b>{x.n}</b><small>ab {money(x.p)}</small></span></button>)}</div><button className="textbtn" onClick={()=>setStep(1)}>← {t.back}</button></>}{step===3&&<><h3>{t.extras}</h3><div className="choices">{extras.map((x,i)=><button key={x.code} className={xs.includes(i)?'selected':''} onClick={()=>setXs(xs.includes(i)?xs.filter(z=>z!==i):[...xs,i])}><span><b>{x.n}</b><small>+{money(x.p)}</small></span></button>)}</div><div className="actions"><button className="textbtn" onClick={()=>setStep(2)}>← {t.back}</button><button className="btn gold" onClick={()=>setStep(4)}>{t.continue}</button></div></>}{step===4&&<form onSubmit={save}><h3>{t.details}</h3><div className="formgrid"><label>{t.name}<input required name="name"/></label><label>{t.phone}<input required name="phone" type="tel"/></label><label>{t.email}<input name="email" type="email"/></label><label>{t.address}<input required name="address"/></label><label>{t.date}<input required name="date" type="date" min={new Date(Date.now()+86400000).toISOString().slice(0,10)}/></label><label>{t.time}<select name="time"><option>09:00</option><option>11:30</option><option>14:00</option><option>16:30</option></select></label><label className="wide">{t.notes}<textarea name="notes" rows="3"/></label></div>{saveError&&<p className="formerror">{saveError}</p>}<div className="actions"><button type="button" className="textbtn" onClick={()=>setStep(3)}>← {t.back}</button><button disabled={saving} className="btn gold">{saving?t.sending:t.send}</button></div></form>}</div><aside><h3>{t.summary}</h3>{v!==null&&<Row a={t.vehicle} b={vehicles[v].n}/>} {p!==null&&<Row a={t.package} b={packs[p].n}/>} {xs.map(i=><Row key={extras[i].code} a={extras[i].n} b={'+'+money(extras[i].p)}/>)}<div className="grand"><span>{t.total}</span><b>{money(total)}</b></div><p className="fine">{t.disclaimer}</p></aside></div>}</section>
+  <section id="booking" className="section booking"><div className="bookHead"><span className="kicker">03 · ONLINE BOOKING</span><h2>{t.book}</h2></div>{done?<div className="success"><CheckCircle2 size={52}/><h2>{t.success}</h2><p>{t.success2}</p><b>{done.id}</b><button className="btn gold" onClick={()=>{setDone(null);setStep(1);setV(null);setP(null);setXs([])}}>{t.new}</button></div>:<div className="bookGrid"><div className="wizard"><div className="progress">{[1,2,3,4].map(i=><i key={i} className={step>=i?'on':''}/>)}</div>{step===1&&<><h3>{t.vehicle}</h3><div className="choices">{vehicles.map((x,i)=><button key={x.code} className={v===i?'selected':''} onClick={()=>{setV(i);setStep(2)}}><Car/><span><b>{x.n}</b><small>{x.ex}{x.add?` · +${money(x.add)}`:''}</small></span></button>)}</div></>}{step===2&&<><h3>{t.package}</h3><div className="choices">{packs.map((x,i)=><button key={x.code} className={p===i?'selected':''} onClick={()=>{setP(i);setStep(3)}}><Sparkles/><span><b>{x.n}</b><small>ab {money(x.p)}</small></span></button>)}</div><button className="textbtn" onClick={()=>setStep(1)}>← {t.back}</button></>}{step===3&&<><h3>{t.extras}</h3><div className="choices">{extras.map((x,i)=><button key={x.code} className={xs.includes(i)?'selected':''} onClick={()=>setXs(xs.includes(i)?xs.filter(z=>z!==i):[...xs,i])}><span><b>{x.n}</b><small>+{money(x.p)}</small></span></button>)}</div><div className="actions"><button className="textbtn" onClick={()=>setStep(2)}>← {t.back}</button><button className="btn gold" onClick={()=>setStep(4)}>{t.continue}</button></div></>}{step===4&&<form onSubmit={save}><h3>{t.details}</h3><div className="formgrid"><label>{t.name}<input required name="name"/></label><label>{t.phone}<input required name="phone" type="tel"/></label><label>{t.email}<input name="email" type="email"/></label><label>Telegram (optional)<input name="telegram" placeholder="@username"/></label><label>{t.address}<input required name="address"/></label><label>{t.date}<input required name="date" type="date" min={new Date(Date.now()+86400000).toISOString().slice(0,10)}/></label><label>{t.time}<select name="time"><option>09:00</option><option>11:30</option><option>14:00</option><option>16:30</option></select></label><label className="wide">{t.notes}<textarea name="notes" rows="3"/></label></div>{saveError&&<p className="formerror">{saveError}</p>}<div className="actions"><button type="button" className="textbtn" onClick={()=>setStep(3)}>← {t.back}</button><button disabled={saving} className="btn gold">{saving?t.sending:t.send}</button></div></form>}</div><aside><h3>{t.summary}</h3>{v!==null&&<Row a={t.vehicle} b={vehicles[v].n}/>} {p!==null&&<Row a={t.package} b={packs[p].n}/>} {xs.map(i=><Row key={extras[i].code} a={extras[i].n} b={'+'+money(extras[i].p)}/>)}<div className="grand"><span>{t.total}</span><b>{money(total)}</b></div><p className="fine">{t.disclaimer}</p></aside></div>}</section>
 
-  <footer><Logo/><span>© 2026 VELNARA · Mobile Detailing Berlin</span><button onClick={()=>setAdmin(true)}><LayoutDashboard/> {t.admin}</button></footer>
+  <footer><Logo/><span>© 2026 VELNARA · Mobile Detailing Berlin</span><div className="footerActions">{installPrompt&&<button onClick={installApp}><Download/> Install app</button>}<button onClick={()=>setAdmin(true)}><LayoutDashboard/> {t.admin}</button></div></footer>
 
   {admin&&<div className="modal"><div className="admin"><button className="close" onClick={()=>setAdmin(false)}><X/></button><div className="adminHead"><Logo/><div><h2>{t.orders}</h2><p>VELNARA operations dashboard</p></div></div>
     {!session?<form className="adminLogin" onSubmit={signIn}><h3>Admin login</h3><label>Email<input required type="email" name="admin_email" autoComplete="username"/></label><label>Password<input required type="password" name="admin_password" autoComplete="current-password"/></label>{adminError&&<p className="formerror">{adminError}</p>}<button disabled={adminLoading} className="btn gold">{adminLoading?'Signing in…':'Sign in'}</button></form>:
     <><div className="adminToolbar"><div><b>{session.user.email}</b><small>Secure admin session</small></div><div className="adminActions"><button className="btn outline" disabled={adminLoading} onClick={loadOrders}><RefreshCw size={16}/>{adminLoading?'Loading…':'Refresh'}</button><button className="btn outline" onClick={signOut}><LogOut size={16}/>Sign out</button></div></div>{adminError&&<p className="formerror">{adminError}</p>}
     <div className="adminStats"><div><span>Total</span><b>{orders.length}</b></div><div><span>New</span><b>{orders.filter(x=>x.status==='new').length}</b></div><div><span>Confirmed</span><b>{orders.filter(x=>x.status==='confirmed').length}</b></div><div><span>Completed</span><b>{orders.filter(x=>x.status==='completed').length}</b></div></div>
     <div className="orderFilters">{[['all','All'],...statuses].map(([value,label])=><button key={value} className={orderFilter===value?'active':''} onClick={()=>setOrderFilter(value)}>{label}</button>)}</div>
-    <div className="tablewrap desktopOrders"><table><thead><tr><th>Booking</th><th>Customer</th><th>Appointment</th><th>Service</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredOrders.length===0&&!adminLoading?<tr><td colSpan="7" className="empty">No bookings in this filter.</td></tr>:filteredOrders.map(o=><tr key={o.id}><td><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></td><td><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}<small>{o.address}</small>{o.notes&&<small>Note: {o.notes}</small>}</td><td><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></td><td><b>{vehicleName(o.vehicle_class)}</b><small>{packageName(o.package_code)}</small>{o.extras?.length>0&&<small>{o.extras.map(extraName).join(', ')}</small>}</td><td><b>{money(o.quoted_price_eur)}</b></td><td><select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td><td><OrderActions order={o}/></td></tr>)}</tbody></table></div>
-    <div className="mobileOrders">{filteredOrders.length===0&&!adminLoading?<div className="emptyCard">No bookings in this filter.</div>:filteredOrders.map(o=><article className="orderCard" key={o.id}><div className="orderCardTop"><div><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></div><strong>{money(o.quoted_price_eur)}</strong></div><div className="orderCardGrid"><div><span>Customer</span><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}</div><div><span>Appointment</span><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></div><div><span>Service</span><b>{packageName(o.package_code)}</b><small>{vehicleName(o.vehicle_class)}</small></div><div><span>Address</span><b>{o.address}</b>{o.notes&&<small>Note: {o.notes}</small>}</div></div><select className="statusSelect" value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><OrderActions order={o}/></article>)}</div></>}
+    <div className="tablewrap desktopOrders"><table><thead><tr><th>Booking</th><th>Customer</th><th>Appointment</th><th>Service</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredOrders.length===0&&!adminLoading?<tr><td colSpan="7" className="empty">No bookings in this filter.</td></tr>:filteredOrders.map(o=><tr key={o.id}><td><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></td><td><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}{o.telegram_username&&<small>@{o.telegram_username}</small>}<small>{o.address}</small>{o.notes&&<small>Note: {o.notes}</small>}</td><td><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></td><td><b>{vehicleName(o.vehicle_class)}</b><small>{packageName(o.package_code)}</small>{o.extras?.length>0&&<small>{o.extras.map(extraName).join(', ')}</small>}</td><td><b>{money(o.quoted_price_eur)}</b></td><td><select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td><td><OrderActions order={o}/></td></tr>)}</tbody></table></div>
+    <div className="mobileOrders">{filteredOrders.length===0&&!adminLoading?<div className="emptyCard">No bookings in this filter.</div>:filteredOrders.map(o=><article className="orderCard" key={o.id}><div className="orderCardTop"><div><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></div><strong>{money(o.quoted_price_eur)}</strong></div><div className="orderCardGrid"><div><span>Customer</span><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}{o.telegram_username&&<small>@{o.telegram_username}</small>}</div><div><span>Appointment</span><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></div><div><span>Service</span><b>{packageName(o.package_code)}</b><small>{vehicleName(o.vehicle_class)}</small></div><div><span>Address</span><b>{o.address}</b>{o.notes&&<small>Note: {o.notes}</small>}</div></div><select className="statusSelect" value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><OrderActions order={o}/></article>)}</div></>}
   </div></div>}</>
 }
 
@@ -139,9 +154,11 @@ function OrderActions({order}){
   const phone=String(order.phone||'').trim();
   const wa=phone.replace(/\D/g,'');
   const route='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(order.address||'Berlin');
+  const tg=String(order.telegram_username||'').replace(/^@/,'');
   return <div className="orderActions">
     <a className="quickAction" href={'tel:'+phone}><Phone size={15}/>Call</a>
     {wa&&<a className="quickAction" href={'https://wa.me/'+wa} target="_blank" rel="noreferrer"><MessageCircle size={15}/>WhatsApp</a>}
+    {tg&&<a className="quickAction" href={'https://t.me/'+encodeURIComponent(tg)} target="_blank" rel="noreferrer"><Send size={15}/>Telegram</a>}
     <a className="quickAction" href={route} target="_blank" rel="noreferrer"><Navigation size={15}/>Route</a>
   </div>
 }
