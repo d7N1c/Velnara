@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import{createClient}from'@supabase/supabase-js';
-import{Car,Sparkles,MapPin,ShieldCheck,ChevronRight,CheckCircle2,LayoutDashboard,X,LogOut,RefreshCw}from'lucide-react';
+import{Car,Sparkles,MapPin,ShieldCheck,ChevronRight,CheckCircle2,LayoutDashboard,X,LogOut,RefreshCw,Phone,MessageCircle,Navigation}from'lucide-react';
 import'./style.css';
 
 const supabase=createClient(import.meta.env.VITE_SUPABASE_URL,import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -34,10 +34,11 @@ function Logo(){return <div className="brand"><div className="vmark">V</div><div
 
 function App(){
   const[lang,setLang]=useState('de'),[step,setStep]=useState(1),[v,setV]=useState(null),[p,setP]=useState(null),[xs,setXs]=useState([]),[done,setDone]=useState(null),[admin,setAdmin]=useState(false),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
-  const[session,setSession]=useState(null),[orders,setOrders]=useState([]),[adminLoading,setAdminLoading]=useState(false),[adminError,setAdminError]=useState('');
+  const[session,setSession]=useState(null),[orders,setOrders]=useState([]),[adminLoading,setAdminLoading]=useState(false),[adminError,setAdminError]=useState(''),[orderFilter,setOrderFilter]=useState('all');
   const t=copy[lang];
 
   const total=useMemo(()=>p===null?0:packs[p].p+(v===null?0:vehicles[v].add)+xs.reduce((a,i)=>a+extras[i].p,0),[v,p,xs]);
+  const filteredOrders=useMemo(()=>orderFilter==='all'?orders:orders.filter(o=>o.status===orderFilter),[orders,orderFilter]);
 
   useEffect(()=>{document.documentElement.lang=lang},[lang]);
 
@@ -128,9 +129,21 @@ function App(){
     {!session?<form className="adminLogin" onSubmit={signIn}><h3>Admin login</h3><label>Email<input required type="email" name="admin_email" autoComplete="username"/></label><label>Password<input required type="password" name="admin_password" autoComplete="current-password"/></label>{adminError&&<p className="formerror">{adminError}</p>}<button disabled={adminLoading} className="btn gold">{adminLoading?'Signing in…':'Sign in'}</button></form>:
     <><div className="adminToolbar"><div><b>{session.user.email}</b><small>Secure admin session</small></div><div className="adminActions"><button className="btn outline" disabled={adminLoading} onClick={loadOrders}><RefreshCw size={16}/>{adminLoading?'Loading…':'Refresh'}</button><button className="btn outline" onClick={signOut}><LogOut size={16}/>Sign out</button></div></div>{adminError&&<p className="formerror">{adminError}</p>}
     <div className="adminStats"><div><span>Total</span><b>{orders.length}</b></div><div><span>New</span><b>{orders.filter(x=>x.status==='new').length}</b></div><div><span>Confirmed</span><b>{orders.filter(x=>x.status==='confirmed').length}</b></div><div><span>Completed</span><b>{orders.filter(x=>x.status==='completed').length}</b></div></div>
-    <div className="tablewrap"><table><thead><tr><th>Booking</th><th>Customer</th><th>Appointment</th><th>Service</th><th>Price</th><th>Status</th></tr></thead><tbody>{orders.length===0&&!adminLoading?<tr><td colSpan="6" className="empty">No bookings yet.</td></tr>:orders.map(o=><tr key={o.id}><td><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></td><td><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}<small>{o.address}</small>{o.notes&&<small>Note: {o.notes}</small>}</td><td><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></td><td><b>{vehicleName(o.vehicle_class)}</b><small>{packageName(o.package_code)}</small>{o.extras?.length>0&&<small>{o.extras.map(extraName).join(', ')}</small>}</td><td><b>{money(o.quoted_price_eur)}</b></td><td><select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td></tr>)}</tbody></table></div></>}
+    <div className="orderFilters">{[['all','All'],...statuses].map(([value,label])=><button key={value} className={orderFilter===value?'active':''} onClick={()=>setOrderFilter(value)}>{label}</button>)}</div>
+    <div className="tablewrap desktopOrders"><table><thead><tr><th>Booking</th><th>Customer</th><th>Appointment</th><th>Service</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredOrders.length===0&&!adminLoading?<tr><td colSpan="7" className="empty">No bookings in this filter.</td></tr>:filteredOrders.map(o=><tr key={o.id}><td><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></td><td><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}<small>{o.address}</small>{o.notes&&<small>Note: {o.notes}</small>}</td><td><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></td><td><b>{vehicleName(o.vehicle_class)}</b><small>{packageName(o.package_code)}</small>{o.extras?.length>0&&<small>{o.extras.map(extraName).join(', ')}</small>}</td><td><b>{money(o.quoted_price_eur)}</b></td><td><select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td><td><OrderActions order={o}/></td></tr>)}</tbody></table></div>
+    <div className="mobileOrders">{filteredOrders.length===0&&!adminLoading?<div className="emptyCard">No bookings in this filter.</div>:filteredOrders.map(o=><article className="orderCard" key={o.id}><div className="orderCardTop"><div><b>{o.booking_code}</b><small>{new Date(o.created_at).toLocaleString()}</small></div><strong>{money(o.quoted_price_eur)}</strong></div><div className="orderCardGrid"><div><span>Customer</span><b>{o.customer_name}</b><small>{o.phone}</small>{o.email&&<small>{o.email}</small>}</div><div><span>Appointment</span><b>{o.booking_date}</b><small>{String(o.booking_time).slice(0,5)}</small></div><div><span>Service</span><b>{packageName(o.package_code)}</b><small>{vehicleName(o.vehicle_class)}</small></div><div><span>Address</span><b>{o.address}</b>{o.notes&&<small>Note: {o.notes}</small>}</div></div><select className="statusSelect" value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>{statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><OrderActions order={o}/></article>)}</div></>}
   </div></div>}</>
 }
 
+function OrderActions({order}){
+  const phone=String(order.phone||'').trim();
+  const wa=phone.replace(/\D/g,'');
+  const route='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(order.address||'Berlin');
+  return <div className="orderActions">
+    <a className="quickAction" href={'tel:'+phone}><Phone size={15}/>Call</a>
+    {wa&&<a className="quickAction" href={'https://wa.me/'+wa} target="_blank" rel="noreferrer"><MessageCircle size={15}/>WhatsApp</a>}
+    <a className="quickAction" href={route} target="_blank" rel="noreferrer"><Navigation size={15}/>Route</a>
+  </div>
+}
 function Row({a,b}){return <div className="row"><span>{a}</span><b>{b}</b></div>}
 createRoot(document.getElementById('root')).render(<App/>);
