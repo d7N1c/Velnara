@@ -10,3 +10,5 @@
 
 .footerActions{display:flex;align-items:center;gap:12px}.footerActions button{background:transparent;border:0;color:#777;display:flex;align-items:center;gap:6px}.footerActions button:hover{color:var(--gold2)}
 @media(max-width:760px){.orderActions{grid-template-columns:repeat(2,1fr)}}
+
+.formgrid select option:disabled{color:#666}.slotNote{font-size:11px;color:#777;margin-top:6px}
