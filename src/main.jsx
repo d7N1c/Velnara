@@ -45,7 +45,7 @@ de:{
   step2:'Termin online buchen',step2d:'Wähle einen freien Tag und eine verfügbare Uhrzeit und sende deine Anfrage.',
   step3:'Wir kommen zu dir',step3d:'Nach der Bestätigung kommt VELNARA zum vereinbarten Standort in Berlin.',
   ctaTitle:'Bereit für ein sauberes Fahrzeug?',ctaText:'Wähle jetzt dein Paket und reserviere einen passenden Termin.',
-  ctaButton:'Termin auswählen',telegramInvalid:'Bitte gib einen gültigen Telegram-Benutzernamen ein (5–32 Zeichen: Buchstaben, Zahlen oder _), oder lasse das Feld leer.'
+  ctaButton:'Termin auswählen',telegramInvalid:'Bitte gib einen gültigen Telegram-Benutzernamen ein (5–32 Zeichen: Buchstaben, Zahlen oder _), oder lasse das Feld leer.',noExtras:'Keine Extras',included:'Enthalten',streetHouse:'Straße & Hausnummer',postalCode:'PLZ',district:'Bezirk (optional)',vehicleLocation:'Wo steht das Fahrzeug? (optional)',vehicleLocationPlaceholder:'z. B. Innenhof, Tiefgarage Ebene -1, Stellplatz 23',locationHelp:'Bitte beschreibe nur, wo wir das Fahrzeug finden. Wohnungsnummer oder Etage der Wohnung sind nicht nötig.',serviceNotes:'Hinweise zur Reinigung (optional)'
 },
 en:{
   navServices:'Services',navBook:'Book',navWhy:'Why VELNARA',book:'Book appointment',
@@ -85,7 +85,7 @@ en:{
   step2:'Book online',step2d:'Choose an available day and time, then send your booking request.',
   step3:'We come to you',step3d:'Once confirmed, VELNARA comes to the agreed location in Berlin.',
   ctaTitle:'Ready for a cleaner car?',ctaText:'Choose your package and reserve a suitable appointment now.',
-  ctaButton:'Choose appointment',telegramInvalid:'Please enter a valid Telegram username (5–32 characters: letters, numbers or _), or leave the field empty.'
+  ctaButton:'Choose appointment',telegramInvalid:'Please enter a valid Telegram username (5–32 characters: letters, numbers or _), or leave the field empty.',noExtras:'No extras',included:'Included',streetHouse:'Street & house number',postalCode:'Postcode',district:'District (optional)',vehicleLocation:'Where is the vehicle? (optional)',vehicleLocationPlaceholder:'e.g. courtyard, underground parking level -1, space 23',locationHelp:'Only tell us where to find the vehicle. Apartment number or residential floor is not necessary.',serviceNotes:'Cleaning notes (optional)'
 },
 ru:{
   navServices:'Услуги',navBook:'Запись',navWhy:'Почему VELNARA',book:'Записаться',
@@ -125,7 +125,7 @@ ru:{
   step2:'Запишитесь онлайн',step2d:'Выберите свободную дату и время и отправьте заявку.',
   step3:'Мы приезжаем к вам',step3d:'После подтверждения VELNARA приезжает в согласованное место в Берлине.',
   ctaTitle:'Готовы привести авто в порядок?',ctaText:'Выберите пакет и забронируйте подходящее время.',
-  ctaButton:'Выбрать время',telegramInvalid:'Укажите корректный Telegram username (5–32 символа: буквы, цифры или _), либо оставьте поле пустым.'
+  ctaButton:'Выбрать время',telegramInvalid:'Укажите корректный Telegram username (5–32 символа: буквы, цифры или _), либо оставьте поле пустым.',noExtras:'Без дополнительных услуг',included:'Входит в пакет',streetHouse:'Улица и номер дома',postalCode:'Индекс',district:'Район (необязательно)',vehicleLocation:'Где находится машина? (необязательно)',vehicleLocationPlaceholder:'например: внутренний двор, паркинг -1, место 23',locationHelp:'Нужно указать только, где найти автомобиль. Номер квартиры и этаж проживания нам не нужны.',serviceNotes:'Комментарий по уборке (необязательно)'
 }
 };
 
@@ -212,7 +212,7 @@ const vehicleName=(code,lang='en')=>vehicles.find(x=>x.code===code)?.name?.[lang
 const packageName=(code,lang='en')=>packs.find(x=>x.code===code)?.name?.[lang]||code;
 const extraName=(code,lang='en')=>extras.find(x=>x.code===code)?.name?.[lang]||code;
 
-function Logo(){return <div className="brand"><div className="vmark">V</div><div><b>VELNARA</b><small>BERLIN DETAILING</small></div></div>}
+function Logo(){return <a className="brand" href="/" aria-label="VELNARA home"><div className="vmark">V</div><div><b>VELNARA</b><small>BERLIN DETAILING</small></div></a>}
 
 function App(){
   const[lang,setLang]=useState('de'),[step,setStep]=useState(1),[v,setV]=useState(null),[p,setP]=useState(null),[xs,setXs]=useState([]),[done,setDone]=useState(null),[admin,setAdmin]=useState(false),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
@@ -295,12 +295,19 @@ function App(){
     if(v===null||p===null||saving)return;
     setSaving(true);setSaveError('');
     const f=new FormData(e.currentTarget);
+    const street=String(f.get('address')||'').trim();
+    const postal=String(f.get('postal_code')||'').trim();
+    const district=String(f.get('district')||'').trim();
+    const vehicleLocation=String(f.get('vehicle_location')||'').trim();
+    const cleaningNotes=String(f.get('notes')||'').trim();
+    const fullAddress=[street,postal?postal+' Berlin':'',district].filter(Boolean).join(', ');
+    const combinedNotes=[vehicleLocation?'Vehicle location: '+vehicleLocation:'',cleaningNotes].filter(Boolean).join('\n')||null;
     const bookingCode='VL-'+crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase();const payload={booking_code:bookingCode,
       customer_name:String(f.get('name')||'').trim(),
       phone:String(f.get('phone')||'').trim(),
       email:String(f.get('email')||'').trim()||null,
       telegram_username:String(f.get('telegram')||'').trim().replace(/^@/,'')||null,
-      address:String(f.get('address')||'').trim(),
+      address:fullAddress,
       booking_date:f.get('date'),
       booking_time:f.get('time'),
       vehicle_class:vehicles[v].code,
@@ -308,7 +315,7 @@ function App(){
       extras:xs.map(i=>extras[i].code),
       quoted_price_eur:total,
       status:'new',
-      notes:String(f.get('notes')||'').trim()||null
+      notes:combinedNotes
     };
     const{error}=await supabase.from('bookings').insert(payload);
     setSaving(false);
@@ -319,7 +326,7 @@ function App(){
       if(error.code==='23505'&&payload.booking_date===selectedDate)setBusySlots(cur=>cur.includes(String(payload.booking_time).slice(0,5))?cur:[...cur,String(payload.booking_time).slice(0,5)]);
       return
     }
-    setDone({id:bookingCode,date:payload.booking_date,time:String(payload.booking_time).slice(0,5),vehicle:vehicles[v].name[lang],package:packs[p].name[lang],total,address:payload.address,name:payload.customer_name});setSelectedDate('');setBusySlots([]);
+    setDone({id:bookingCode,date:payload.booking_date,time:String(payload.booking_time).slice(0,5),vehicle:vehicles[v].name[lang],package:packs[p].name[lang],extras:xs.map(i=>extras[i].name[lang]),total,address:payload.address,name:payload.customer_name});setSelectedDate('');setBusySlots([]);
   };
 
   const signIn=async e=>{
@@ -392,7 +399,7 @@ function App(){
     </div>
   </section>
 
-  <section id="booking" className="section booking"><div className="bookHead"><span className="kicker">05 · {t.onlineBooking}</span><h2>{t.book}</h2></div>{done?<div className="success"><CheckCircle2 size={52}/><h2>{t.success}</h2><p>{t.success2}</p><div className="confirmCard"><span>{t.bookingReference}</span><strong>{done.id}</strong><div className="confirmGrid"><div><small>{t.date}</small><b>{done.date}</b></div><div><small>{t.time}</small><b>{done.time}</b></div><div><small>{t.vehicleLabel}</small><b>{done.vehicle}</b></div><div><small>{t.packageLabel}</small><b>{done.package}</b></div><div><small>{t.priceLabel}</small><b>{money(done.total)}</b></div><div><small>{t.addressLabel}</small><b>{done.address}</b></div></div></div><button className="btn gold" onClick={()=>{setDone(null);setStep(1);setV(null);setP(null);setXs([]);setSelectedDate('');setBusySlots([])}}>{t.new}</button></div>:<div className="bookGrid"><div className="wizard"><div className="progress">{[1,2,3,4].map(i=><i key={i} className={step>=i?'on':''}/>)}</div>{step===1&&<><h3>{t.vehicle}</h3><div className="choices">{vehicles.map((x,i)=><button key={x.code} className={v===i?'selected':''} onClick={()=>{setV(i);setStep(2)}}><Car/><span><b>{x.name[lang]}</b><small>{x.ex[lang]}{x.add?` · +${money(x.add)}`:''}</small></span></button>)}</div></>}{step===2&&<><h3>{t.package}</h3><div className="choices">{packs.map((x,i)=><button key={x.code} className={p===i?'selected':''} onClick={()=>{setP(i);setStep(3)}}><Sparkles/><span><b>{x.name[lang]}</b><small>{t.from} {money(x.p)}</small></span></button>)}</div><button className="textbtn" onClick={()=>setStep(1)}>← {t.back}</button></>}{step===3&&<><h3>{t.extras}</h3><div className="choices">{extras.map((x,i)=><button key={x.code} className={xs.includes(i)?'selected':''} onClick={()=>setXs(xs.includes(i)?xs.filter(z=>z!==i):[...xs,i])}><span><b>{x.name[lang]}</b><small>+{money(x.p)}</small></span></button>)}</div><div className="actions"><button className="textbtn" onClick={()=>setStep(2)}>← {t.back}</button><button className="btn gold" onClick={()=>setStep(4)}>{t.continue}</button></div></>}{step===4&&<form onSubmit={save}><h3>{t.details}</h3><div className="formgrid"><label>{t.name}<input required name="name"/></label><label>{t.phone}<input required name="phone" type="tel"/></label><label>{t.email}<input name="email" type="email"/></label><label>{t.telegramOptional}<input name="telegram" placeholder="@username" minLength="5" maxLength="33" pattern="@?[A-Za-z0-9_]{5,32}" title={t.telegramInvalid}/></label><label>{t.address}<input required name="address"/></label><label>{t.date}<input required name="date" type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} min={new Date(Date.now()+86400000).toISOString().slice(0,10)}/></label><label>{t.time}<select required name="time" defaultValue=""><option value="" disabled>{slotLoading?'…':t.chooseTime}</option>{timeSlots.map(slot=><option key={slot} value={slot} disabled={busySlots.includes(slot)}>{slot}{busySlots.includes(slot)?` · ${t.booked}`:''}</option>)}</select></label><label className="wide">{t.notes}<textarea name="notes" rows="3"/></label></div>{saveError&&<p className="formerror">{saveError}</p>}<div className="actions"><button type="button" className="textbtn" onClick={()=>setStep(3)}>← {t.back}</button><button disabled={saving} className="btn gold">{saving?t.sending:t.send}</button></div></form>}</div><aside><h3>{t.summary}</h3>{v!==null&&<Row a={t.vehicle} b={vehicles[v].name[lang]}/>} {p!==null&&<Row a={t.package} b={packs[p].name[lang]}/>} {xs.map(i=><Row key={extras[i].code} a={extras[i].name[lang]} b={'+'+money(extras[i].p)}/>)}<div className="grand"><span>{t.total}</span><b>{money(total)}</b></div><p className="fine">{t.disclaimer}</p></aside></div>}</section>
+  <section id="booking" className="section booking"><div className="bookHead"><span className="kicker">05 · {t.onlineBooking}</span><h2>{t.book}</h2></div>{done?<div className="success"><CheckCircle2 size={52}/><h2>{t.success}</h2><p>{t.success2}</p><div className="confirmCard"><span>{t.bookingReference}</span><strong>{done.id}</strong><div className="confirmGrid"><div><small>{t.date}</small><b>{done.date}</b></div><div><small>{t.time}</small><b>{done.time}</b></div><div><small>{t.vehicleLabel}</small><b>{done.vehicle}</b></div><div><small>{t.packageLabel}</small><b>{done.package}</b></div><div><small>{t.priceLabel}</small><b>{money(done.total)}</b></div><div><small>{t.addressLabel}</small><b>{done.address}</b></div><div className="confirmWide"><small>{t.extras}</small><b>{done.extras?.length?done.extras.join(', '):t.noExtras}</b></div></div></div><button className="btn gold" onClick={()=>{setDone(null);setStep(1);setV(null);setP(null);setXs([]);setSelectedDate('');setBusySlots([])}}>{t.new}</button></div>:<div className="bookGrid"><div className="wizard"><div className="progress">{[1,2,3,4].map(i=><i key={i} className={step>=i?'on':''}/>)}</div>{step===1&&<><h3>{t.vehicle}</h3><div className="choices">{vehicles.map((x,i)=><button key={x.code} className={v===i?'selected':''} onClick={()=>{setV(i);setStep(2)}}><Car/><span><b>{x.name[lang]}</b><small>{x.ex[lang]}{x.add?` · +${money(x.add)}`:''}</small></span></button>)}</div></>}{step===2&&<><h3>{t.package}</h3><div className="choices">{packs.map((x,i)=><button key={x.code} className={'packageChoice '+(p===i?'selected':'')} onClick={()=>{setP(i);setStep(3)}}><Sparkles/><span><b>{x.name[lang]}</b><small>{t.from} {money(x.p)}</small><em>{t.included}: {x.d[lang].slice(0,3).join(' · ')}</em></span></button>)}</div><button className="textbtn" onClick={()=>setStep(1)}>← {t.back}</button></>}{step===3&&<><h3>{t.extras}</h3><div className="choices"><button className={'noExtrasChoice '+(xs.length===0?'selected':'')} onClick={()=>setXs([])}><CheckCircle2/><span><b>{t.noExtras}</b><small>€0</small></span></button>{extras.map((x,i)=><button key={x.code} className={xs.includes(i)?'selected':''} onClick={()=>setXs(xs.includes(i)?xs.filter(z=>z!==i):[...xs,i])}><span><b>{x.name[lang]}</b><small>+{money(x.p)}</small></span></button>)}</div><div className="actions"><button className="textbtn" onClick={()=>setStep(2)}>← {t.back}</button><button className="btn gold" onClick={()=>setStep(4)}>{t.continue}</button></div></>}{step===4&&<form onSubmit={save}><h3>{t.details}</h3><div className="formgrid"><label>{t.name}<input required name="name"/></label><label>{t.phone}<input required name="phone" type="tel"/></label><label>{t.email}<input name="email" type="email"/></label><label>{t.telegramOptional}<input name="telegram" placeholder="@username" minLength="5" maxLength="33" pattern="@?[A-Za-z0-9_]{5,32}" title={t.telegramInvalid}/></label><label>{t.streetHouse}<input required name="address" autoComplete="street-address"/></label><label>{t.postalCode}<input required name="postal_code" inputMode="numeric" pattern="[0-9]{5}" maxLength="5" placeholder="10115"/></label><label>{t.district}<input name="district" placeholder="Mitte / Reinickendorf"/></label><label>{t.date}<input required name="date" type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} min={new Date(Date.now()+86400000).toISOString().slice(0,10)}/></label><label>{t.time}<select required name="time" defaultValue=""><option value="" disabled>{slotLoading?'…':t.chooseTime}</option>{timeSlots.map(slot=><option key={slot} value={slot} disabled={busySlots.includes(slot)}>{slot}{busySlots.includes(slot)?` · ${t.booked}`:''}</option>)}</select></label><label className="wide">{t.vehicleLocation}<input name="vehicle_location" placeholder={t.vehicleLocationPlaceholder}/><small className="fieldHelp">{t.locationHelp}</small></label><label className="wide">{t.serviceNotes}<textarea name="notes" rows="3"/></label></div>{saveError&&<p className="formerror">{saveError}</p>}<div className="actions"><button type="button" className="textbtn" onClick={()=>setStep(3)}>← {t.back}</button><button disabled={saving} className="btn gold">{saving?t.sending:t.send}</button></div></form>}</div><aside><h3>{t.summary}</h3>{v!==null&&<Row a={t.vehicle} b={vehicles[v].name[lang]}/>} {p!==null&&<Row a={t.package} b={packs[p].name[lang]}/>} {xs.length?xs.map(i=><Row key={extras[i].code} a={extras[i].name[lang]} b={'+'+money(extras[i].p)}/>):<Row a={t.extras} b={t.noExtras}/>}<div className="grand"><span>{t.total}</span><b>{money(total)}</b></div><p className="fine">{t.disclaimer}</p></aside></div>}</section>
 
   <footer><Logo/><span>© 2026 VELNARA · Mobile Detailing Berlin</span><div className="footerActions">{installPrompt&&<button onClick={installApp}><Download/> {t.installApp}</button>}<button onClick={()=>setAdmin(true)}><LayoutDashboard/> {t.admin}</button></div></footer>
 
